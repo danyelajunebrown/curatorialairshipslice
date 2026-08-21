@@ -469,6 +469,7 @@ const VIEWER_JS = [
 "{f:function(u){return{x:W4-u,z:DEPTH-.25,ry:Math.PI}},len:W4},",
 "{f:function(u){return{x:FX+.3,z:FZ0+u,ry:Math.PI/2}},len:FWW},",
 "{f:function(u){return{x:FX-.3,z:FZ0+FWW-u,ry:-Math.PI/2}},len:FWW},",
+"{f:function(u){return{x:W6+W2-.25,z:W1+6.375+u,ry:-Math.PI/2}},len:5},",
 "{f:function(u){return{x:.3,z:DEPTH-u,ry:Math.PI/2}},len:DEPTH}];",
 "BAKED.forEach(function(d){var img=new Image();img.onload=function(){",
 "var tx=new THREE.CanvasTexture(img);tx.premultiplyAlpha=false;",
@@ -487,7 +488,8 @@ const VIEWER_JS = [
 "3:{e:new THREE.Vector3(W4/2,5,DEPTH-32),l:new THREE.Vector3(W4/2,5,DEPTH)},",
 "4:{e:new THREE.Vector3(FX+14,5,FZ0+FWW/2),l:new THREE.Vector3(FX,5,FZ0+FWW/2)},",
 "5:{e:new THREE.Vector3(FX-14,5,FZ0+FWW/2),l:new THREE.Vector3(FX,5,FZ0+FWW/2)},",
-"6:{e:new THREE.Vector3(26,5,DEPTH/2),l:new THREE.Vector3(0,5,DEPTH/2)}};",
+"6:{e:new THREE.Vector3(W6+W2-13,5,W1+8.9),l:new THREE.Vector3(W6+W2,5,W1+8.9)},",
+"7:{e:new THREE.Vector3(26,5,DEPTH/2),l:new THREE.Vector3(0,5,DEPTH/2)}};",
 "[].forEach.call(document.querySelectorAll('#v button'),function(b){b.onclick=function(){",
 "[].forEach.call(document.querySelectorAll('#v button'),function(o){o.classList.remove('on')});",
 "b.classList.add('on');var v=VIEWS[b.dataset.v];flyTo(v.e,v.l);};});",
@@ -521,8 +523,8 @@ document.getElementById('share').onclick=()=>{
   + '<div id="v"><button data-v="plan">Plan</button><button data-v="0">Wall 6</button>'
   + '<button data-v="1">Wall 1</button><button data-v="2">Wall 2</button>'
   + '<button data-v="3">Wall 4</button><button data-v="4">5A</button>'
-  + '<button data-v="5">5B</button><button data-v="6">Wall 3</button>
-  <button data-v="7">Brick</button></div>'
+  + '<button data-v="5">5B</button><button data-v="6">Wall 3</button>'
+  + '<button data-v="7">Brick</button></div>'
   + '<div id="t">drag to orbit &middot; scroll to zoom &middot; view only</div>'
   + '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>'
   + '<script>var BAKED=' + JSON.stringify(data) + ';<\/script>'
