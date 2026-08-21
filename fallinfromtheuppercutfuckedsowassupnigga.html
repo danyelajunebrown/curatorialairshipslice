@@ -16,7 +16,10 @@
   #drop.over{border-color:#e8264f;color:#e8264f}
   #tip{position:fixed;left:14px;bottom:12px;color:#8a8a8a;font-size:11px;line-height:1.6}
   #hud{position:fixed;right:14px;top:14px;padding:9px 13px;border-radius:6px;
-    background:rgba(255,255,255,.9);color:#111;border:1px solid #ddd;font-variant-numeric:tabular-nums;display:none}
+    background:rgba(255,255,255,.94);color:#111;border:1px solid #ddd;
+    font-variant-numeric:tabular-nums;display:none;align-items:center;gap:10px}
+  #hud select{font:inherit;padding:4px 6px;border:1px solid #ccc;border-radius:4px;background:#fff}
+  #hud input[type=range]{width:150px;accent-color:#e8264f}
   #hud b{color:#ff5c7a;font-weight:600}
   #copy{position:fixed;right:14px;bottom:12px;padding:9px 14px;border-radius:6px;
     background:rgba(255,255,255,.92);color:#111;border:1px solid #ddd;font:inherit;font-weight:600;cursor:pointer}
@@ -26,12 +29,20 @@
 <canvas id="c"></canvas>
 <div id="drop">Drop images &nbsp;·&nbsp; or click</div>
 <input type="file" id="file" accept="image/*" multiple hidden>
-<div id="hud"></div>
+<div id="hud">
+  <select id="wallsel">
+    <option value="0">Wall 6</option><option value="1">Wall 1</option>
+    <option value="2">Wall 2</option><option value="3">Wall 4</option>
+    <option value="4">5A inner</option><option value="5">5B outer</option>
+  </select>
+  <input type="range" id="sizer" min="4" max="160" value="24">
+  <span id="readout"></span>
+</div>
 <button id="copy">Copy list</button>
 <div id="tip">
   drag empty space — orbit &nbsp;·&nbsp; scroll — zoom<br>
   drag a work — move it on its wall &nbsp;·&nbsp; shift-drag up/down — resize<br>
-  click a work then [ or ] — send to next wall &nbsp;·&nbsp; delete — remove
+  click a work — use the wall menu and size slider up top &nbsp;·&nbsp; delete — remove
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -208,11 +219,23 @@ function resizeWork(g,newW){const d=g.userData,h=newW/d.ar;
   g.children[0].geometry=new THREE.PlaneGeometry(newW+.06,h+.06);
   g.children[1].geometry=new THREE.PlaneGeometry(newW,h);place(g);}
 
-const hud=document.getElementById('hud');
-function showHud(){if(!sel){hud.style.display='none';return;}
-  const d=sel.userData;hud.style.display='block';
-  hud.innerHTML=`<b>${WALLS[d.wi].id}</b> &nbsp; ${Math.round(d.w)}×${Math.round(d.h)} in &nbsp;·&nbsp; `+
-    `${Math.round(d.u/IN)}&nbsp;in from left &nbsp;·&nbsp; centre ${Math.round(d.y/IN)}&nbsp;in`;}
+const hud=document.getElementById('hud'),wallsel=document.getElementById('wallsel'),
+      sizer=document.getElementById('sizer'),readout=document.getElementById('readout');
+function showHud(){
+  if(!sel){hud.style.display='none';return;}
+  const d=sel.userData;
+  hud.style.display='flex';
+  wallsel.value=d.wi;
+  sizer.value=Math.round(d.w);
+  readout.innerHTML=`${Math.round(d.w)}×${Math.round(d.h)} in &nbsp;·&nbsp; `+
+    `${Math.round(d.u/IN)}&nbsp;in from left &nbsp;·&nbsp; centre ${Math.round(d.y/IN)}&nbsp;in`;
+}
+wallsel.onchange=()=>{ if(!sel)return;
+  sel.userData.wi=+wallsel.value;
+  sel.userData.u=WALLS[sel.userData.wi].len/2;
+  place(sel); showHud(); };
+sizer.oninput=()=>{ if(!sel)return;
+  resizeWork(sel, Math.max(.3,(+sizer.value)*IN)); showHud(); };
 
 const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();
 let mode=null,lastX=0,lastY=0;
