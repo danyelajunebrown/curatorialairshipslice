@@ -26,6 +26,9 @@
     font-variant-numeric:tabular-nums;display:none;align-items:center;gap:10px}
   #hud select{font:inherit;padding:4px 6px;border:1px solid #ccc;border-radius:4px;background:#fff}
   #hud input[type=range]{width:150px;accent-color:#e8264f}
+  #hud button{font:inherit;font-size:11px;font-weight:600;padding:5px 9px;border:1px solid #ccc;
+    border-radius:4px;background:#fff;color:#333;cursor:pointer;white-space:nowrap}
+  #hud button:hover{background:#f0f0f0}
   #hud b{color:#ff5c7a;font-weight:600}
   #clear{position:fixed;right:110px;bottom:12px;padding:9px 14px;border-radius:6px;
     background:rgba(255,255,255,.92);color:#a00;border:1px solid #ddd;font:inherit;
@@ -56,7 +59,7 @@
     <option value="4">5A inner</option><option value="5">5B outer</option><option value="6">Brick / west</option>
   </select>
   <input type="range" id="sizer" min="4" max="160" value="24">
-  <span id="readout"></span>
+  <button id="dupe" title="Duplicate (D)">Duplicate</button><button id="flip" title="Flip horizontal (F)">Flip</button><span id="readout"></span>
 </div>
 <button id="copy">Copy list</button>
 <button id="clear">Clear room</button>
@@ -64,7 +67,7 @@
 <div id="tip">
   drag empty space — orbit &nbsp;·&nbsp; scroll — zoom<br>
   drag a work — move it on its wall &nbsp;·&nbsp; shift-drag up/down — resize<br>
-  click a work — use the wall menu and size slider up top &nbsp;·&nbsp; delete — remove
+  click a work — wall menu, size slider, Duplicate (D), Flip (F) &nbsp;·&nbsp; delete — remove
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -245,7 +248,8 @@ const WALLS=[
 const works=[];let sel=null;
 function place(g){const d=g.userData,W=WALLS[d.wi];
   const p=W.f(Math.max(d.w*IN/2,Math.min(W.len-d.w*IN/2,d.u)));
-  g.position.set(p.x,d.y,p.z);g.rotation.set(0,p.ry,0);}
+  g.position.set(p.x,d.y,p.z);g.rotation.set(0,p.ry,0);
+  g.scale.x = d.flip ? -1 : 1;}
 function makeWork(tex,ar,name,hasAlpha){
   const w=2.0,h=w/ar;const grp=new THREE.Group();
   const fr=new THREE.Mesh(new THREE.PlaneGeometry(w+.06,h+.06),
@@ -310,6 +314,8 @@ addEventListener('keydown',e=>{
     sel.userData.u=WALLS[sel.userData.wi].len/2;place(sel);showHud();}
   if(e.key==='['){sel.userData.wi=(sel.userData.wi+WALLS.length-1)%WALLS.length;
     sel.userData.u=WALLS[sel.userData.wi].len/2;place(sel);showHud();}
+  if(e.key==='d'||e.key==='D'){e.preventDefault();duplicate();}
+  if(e.key==='f'||e.key==='F'){e.preventDefault();flip();}
   if(e.key==='Backspace'||e.key==='Delete'){scene.remove(sel);
     works.splice(works.indexOf(sel),1);sel=null;showHud();save();}});
 
@@ -356,7 +362,7 @@ function save(){
   saveTimer=setTimeout(()=>{
     try{
       const data=works.map(g=>{const d=g.userData;
-        return {wi:d.wi,u:d.u,y:d.y,w:d.w,h:d.h,ar:d.ar,name:d.name,alpha:d.alpha,src:d.src};});
+        return {wi:d.wi,u:d.u,y:d.y,w:d.w,h:d.h,ar:d.ar,name:d.name,alpha:d.alpha,src:d.src,flip:d.flip};});
       localStorage.setItem(KEY,JSON.stringify(data));
       note('Saved '+data.length+' work'+(data.length===1?'':'s'));
     }catch(e){ note('Too many images to save — export the list'); }
@@ -373,13 +379,31 @@ function restore(){
     img.onload=()=>{
       const t=new THREE.CanvasTexture(img);t.premultiplyAlpha=false;
       const g=makeWork(t,d.ar,d.name,d.alpha);
-      Object.assign(g.userData,{wi:d.wi,u:d.u,y:d.y,src:d.src});
+      Object.assign(g.userData,{wi:d.wi,u:d.u,y:d.y,src:d.src,flip:d.flip});
       resizeWork(g,d.w*IN); place(g);
     };
     img.src=d.src;
   });
   note('Restored '+data.length+' work'+(data.length===1?'':'s'));
 }
+function duplicate(){
+  if(!sel)return;
+  const d=sel.userData;
+  const img=new Image();
+  img.onload=()=>{
+    const t=new THREE.CanvasTexture(img); t.premultiplyAlpha=false;
+    const g=makeWork(t,d.ar,d.name,d.alpha);
+    Object.assign(g.userData,{wi:d.wi,u:Math.min(WALLS[d.wi].len,d.u+d.w*IN*1.15),
+      y:d.y,src:d.src,flip:d.flip});
+    resizeWork(g,d.w*IN); place(g); sel=g; showHud(); save();
+  };
+  img.src=d.src;
+}
+function flip(){ if(!sel)return; sel.userData.flip=!sel.userData.flip;
+  place(sel); showHud(); save(); }
+document.getElementById('dupe').onclick=duplicate;
+document.getElementById('flip').onclick=flip;
+
 document.getElementById('clear').onclick=()=>{
   if(!confirm('Remove every work from the room?'))return;
   works.slice().forEach(g=>scene.remove(g)); works.length=0; sel=null; showHud();
@@ -389,7 +413,7 @@ document.getElementById('clear').onclick=()=>{
 
 document.getElementById('copy').onclick=()=>{
   const t=works.map(g=>{const d=g.userData;
-    return `${d.name} — ${WALLS[d.wi].id} · ${Math.round(d.w)}×${Math.round(d.h)} in · ${Math.round(d.u/IN)} in from left · centre ${Math.round(d.y/IN)} in`;
+    return `${d.name}${d.flip?' (flipped)':''} — ${WALLS[d.wi].id} · ${Math.round(d.w)}×${Math.round(d.h)} in · ${Math.round(d.u/IN)} in from left · centre ${Math.round(d.y/IN)} in`;
   }).join('\n');
   navigator.clipboard.writeText(t);
   const b=document.getElementById('copy');b.textContent='Copied';
