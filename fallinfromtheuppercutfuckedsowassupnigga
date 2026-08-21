@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DCAC placement</title>
+<style>
+  *{box-sizing:border-box;margin:0}
+  html,body{height:100%;overflow:hidden;background:#fff;
+    font:13px/1.4 -apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;color:#111}
+  canvas{display:block;cursor:grab}
+  canvas.dragging{cursor:grabbing}
+  #drop{position:fixed;left:14px;top:14px;padding:11px 16px;border-radius:6px;
+    background:rgba(255,255,255,.92);color:#111;font-weight:600;cursor:pointer;
+    border:1.5px dashed #999;user-select:none}
+  #drop.over{border-color:#e8264f;color:#e8264f}
+  #tip{position:fixed;left:14px;bottom:12px;color:#8a8a8a;font-size:11px;line-height:1.6}
+  #hud{position:fixed;right:14px;top:14px;padding:9px 13px;border-radius:6px;
+    background:rgba(255,255,255,.9);color:#111;border:1px solid #ddd;font-variant-numeric:tabular-nums;display:none}
+  #hud b{color:#ff5c7a;font-weight:600}
+  #copy{position:fixed;right:14px;bottom:12px;padding:9px 14px;border-radius:6px;
+    background:rgba(255,255,255,.92);color:#111;border:1px solid #ddd;font:inherit;font-weight:600;cursor:pointer}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="drop">Drop images &nbsp;·&nbsp; or click</div>
+<input type="file" id="file" accept="image/*" multiple hidden>
+<div id="hud"></div>
+<button id="copy">Copy list</button>
+<div id="tip">
+  drag empty space — orbit &nbsp;·&nbsp; scroll — zoom<br>
+  drag a work — move it on its wall &nbsp;·&nbsp; shift-drag up/down — resize<br>
+  click a work then [ or ] — send to next wall &nbsp;·&nbsp; delete — remove
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const IN=1/12;
+const W6=26.833,W1=12.0,W2=8.584,W4=35.417,DEPTH=26.0;
+const H6=9.29,H1=10.0,H2=8.79,H3=9.75,H4=9.5;
+const FWW=11.125,FWH=11.04,FX=5.5,FZ0=7.0;
+
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(devicePixelRatio);
+const scene=new THREE.Scene();
+(function(){
+  const W=2048,H=1024;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const x=cv.getContext('2d');
+
+  // sky
+  const g=x.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#2f6fb5'); g.addColorStop(.42,'#5f9fd6');
+  g.addColorStop(.72,'#9dc6e6'); g.addColorStop(1,'#cfe0ec');
+  x.fillStyle=g; x.fillRect(0,0,W,H);
+
+  // seeded value noise, tileable in u
+  let seed=1337;
+  function rnd(){seed=(seed*1664525+1013904223)&0xffffffff; return (seed>>>8)/16777216;}
+  function grid(n,m){const a=[];for(let j=0;j<=m;j++){a.push([]);
+    for(let i=0;i<n;i++)a[j].push(rnd()); a[j].push(a[j][0]);} return a;}
+  function smooth(t){return t*t*(3-2*t);}
+  function sample(a,n,m,u,v){
+    const fx=u*n, fy=v*m;
+    const i=Math.floor(fx), j=Math.min(m-1,Math.floor(fy));
+    const tx=smooth(fx-i), ty=smooth(fy-j);
+    const i0=((i%n)+n)%n, i1=(i0+1)%n;
+    const A=a[j][i0],B=a[j][i1],C=a[j+1][i0],D=a[j+1][i1];
+    return (A*(1-tx)+B*tx)*(1-ty)+(C*(1-tx)+D*tx)*ty;
+  }
+  const oct=[];
+  for(let o=0;o<6;o++){const n=4*Math.pow(2,o), m=2*Math.pow(2,o); oct.push({n,m,a:grid(n,m)});}
+  function fbm(u,v){let s=0,amp=.5,tot=0;
+    for(let o=0;o<oct.length;o++){s+=amp*sample(oct[o].a,oct[o].n,oct[o].m,u,v);tot+=amp;amp*=.5;}
+    return s/tot;}
+
+  const img=x.getImageData(0,0,W,H), d=img.data;
+  for(let py=0;py<H;py++){
+    // clouds sit in the upper band, fading out toward the horizon
+    const v=py/H;
+    const band=Math.max(0,Math.min(1,(0.80-v)/0.55))*Math.max(0,Math.min(1,(v-0.02)/0.10));
+    for(let px=0;px<W;px++){
+      const u=px/W;
+      let n=fbm(u,v*1.6);
+      n=n+0.28*fbm(u*2.7+0.4,v*3.1+0.2);
+      let c=(n-0.52)*3.4;              // threshold → billowy edges
+      c=Math.max(0,Math.min(1,c))*band;
+      if(c<=0) continue;
+      const k=(py*W+px)*4;
+      const shade=210+45*Math.min(1,c*1.5);   // bright tops, grey undersides
+      d[k]  =d[k]  +(255-d[k])  *c*(shade/255);
+      d[k+1]=d[k+1]+(252-d[k+1])*c*(shade/255);
+      d[k+2]=d[k+2]+(250-d[k+2])*c*(shade/255);
+    }
+  }
+  x.putImageData(img,0,0);
+
+  const t=new THREE.CanvasTexture(cv);
+  t.mapping=THREE.EquirectangularReflectionMapping;
+  t.colorSpace=THREE.SRGBColorSpace||undefined;
+  scene.background=t;
+})();
+const camera=new THREE.PerspectiveCamera(55,1,0.1,600);
+function resize(){renderer.setSize(innerWidth,innerHeight);
+  camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize);resize();
+
+let th=-0.75,ph=0.78,rad=56,tgt=new THREE.Vector3(17,4.5,13);
+function cam(){camera.position.set(
+  tgt.x+rad*Math.sin(ph)*Math.cos(th),tgt.y+rad*Math.cos(ph),tgt.z+rad*Math.sin(ph)*Math.sin(th));
+  camera.lookAt(tgt);}
+cam();
+
+const wallMat=new THREE.MeshStandardMaterial({color:0xf2efe9,roughness:.95,side:THREE.DoubleSide});
+const brick=new THREE.MeshStandardMaterial({color:0xcfc9c1,roughness:1,side:THREE.DoubleSide});
+
+const shp=new THREE.Shape();
+shp.moveTo(0,0);shp.lineTo(W6,0);shp.lineTo(W6,W1);
+shp.lineTo(W6+W2,W1);shp.lineTo(W6+W2,DEPTH);shp.lineTo(0,DEPTH);shp.lineTo(0,0);
+const fl=new THREE.Mesh(new THREE.ShapeGeometry(shp),
+  new THREE.MeshStandardMaterial({color:0xd9b98c,roughness:.85,side:THREE.DoubleSide}));
+fl.rotation.x=Math.PI/2;scene.add(fl);
+
+function mkwall(x1,z1,x2,z2,h,mat){
+  const len=Math.hypot(x2-x1,z2-z1);
+  const m=new THREE.Mesh(new THREE.BoxGeometry(len,h,0.4),mat||wallMat);
+  m.position.set((x1+x2)/2,h/2,(z1+z2)/2);
+  m.rotation.y=-Math.atan2(z2-z1,x2-x1);scene.add(m);return m;
+}
+mkwall(0,0,W6,0,H6);
+mkwall(W6,0,W6,W1,H1);
+mkwall(W6,W1,W6+W2,W1,H2);
+// east return: solid above and beside a doorway opening
+(function(){
+  const x=W6+W2, zA=W1, zB=DEPTH, DOORW=5.375, DOORH=6.9;
+  const zDoor=zA+2.0;                         // opening starts 2 ft in
+  mkwall(x,zA,x,zDoor,H3);                    // solid before the door
+  mkwall(x,zDoor+DOORW,x,zB,H3);              // solid after the door
+  const head=new THREE.Mesh(new THREE.BoxGeometry(DOORW,H3-DOORH,0.4),wallMat);
+  head.position.set(x,DOORH+(H3-DOORH)/2,zDoor+DOORW/2);
+  head.rotation.y=Math.PI/2; scene.add(head); // header over the opening
+  const jm=new THREE.MeshStandardMaterial({color:0x2b2b2e});
+  [zDoor,zDoor+DOORW].forEach(z=>{
+    const j=new THREE.Mesh(new THREE.BoxGeometry(.12,DOORH,.5),jm);
+    j.position.set(x,DOORH/2,z); scene.add(j);});
+  const lin=new THREE.Mesh(new THREE.BoxGeometry(.12,.12,DOORW),jm);
+  lin.position.set(x,DOORH,zDoor+DOORW/2); scene.add(lin);
+})();
+mkwall(W6+W2,DEPTH,0,DEPTH,H4);
+mkwall(0,DEPTH,0,0,H1,brick);
+mkwall(FX,FZ0,FX,FZ0+FWW,FWH);
+
+// open stairwell void, glass balustrade, diagonal handrail
+const vd=new THREE.Mesh(new THREE.BoxGeometry(11,.12,5.2),
+  new THREE.MeshStandardMaterial({color:0xd9b98c,roughness:.85,side:THREE.DoubleSide}));
+vd.position.set(17.5,.02,13.5);scene.add(vd);
+const glassM=new THREE.MeshPhysicalMaterial({color:0xbfd8e0,transparent:true,opacity:.22,
+  roughness:.05,metalness:0,side:THREE.DoubleSide});
+function rail(x,z,w,d){const g=new THREE.Mesh(new THREE.BoxGeometry(w,3.4,d),glassM);
+  g.position.set(x,1.7,z);scene.add(g);}
+rail(17.5,11.0,11.2,.08); rail(17.5,16.0,11.2,.08);
+rail(12.0,13.5,.08,5.2);  rail(23.0,13.5,.08,5.2);
+const hr=new THREE.Mesh(new THREE.BoxGeometry(12.5,.12,.12),
+  new THREE.MeshStandardMaterial({color:0x1c1c1e}));
+hr.position.set(17.5,2.4,13.5);hr.rotation.y=-0.42;scene.add(hr);
+
+function guide(x1,z1,x2,z2,ht,col){
+  const len=Math.hypot(x2-x1,z2-z1);
+  const m=new THREE.Mesh(new THREE.BoxGeometry(len,.04,.04),new THREE.MeshBasicMaterial({color:col}));
+  m.position.set((x1+x2)/2,ht,(z1+z2)/2);m.rotation.y=-Math.atan2(z2-z1,x2-x1);scene.add(m);}
+guide(0,.3,W6,.3,57*IN,0xe8264f);
+guide(.3,DEPTH-.3,W4-.3,DEPTH-.3,57*IN,0xe8264f);
+guide(FX-.35,FZ0,FX-.35,FZ0+FWW,43*IN,0x00c88a);
+
+
+
+scene.add(new THREE.AmbientLight(0xffffff,.85));
+const L1=new THREE.DirectionalLight(0xfff4e2,.7);L1.position.set(18,26,16);scene.add(L1);
+const L2=new THREE.DirectionalLight(0xffffff,.28);L2.position.set(-14,16,-8);scene.add(L2);
+
+const WALLS=[
+ {id:'WALL 6', len:W6, f:u=>({x:u,z:.25,ry:0})},
+ {id:'WALL 1', len:W1, f:u=>({x:W6-.25,z:u,ry:-Math.PI/2})},
+ {id:'WALL 2', len:W2, f:u=>({x:W6+u,z:W1-.25,ry:Math.PI})},
+ {id:'WALL 4', len:W4, f:u=>({x:W4-u,z:DEPTH-.25,ry:Math.PI})},
+ {id:'5A',     len:FWW,f:u=>({x:FX+.3,z:FZ0+u,ry:Math.PI/2})},
+ {id:'5B',     len:FWW,f:u=>({x:FX-.3,z:FZ0+FWW-u,ry:-Math.PI/2})}
+];
+
+const works=[];let sel=null;
+function place(g){const d=g.userData,W=WALLS[d.wi];
+  const p=W.f(Math.max(d.w*IN/2,Math.min(W.len-d.w*IN/2,d.u)));
+  g.position.set(p.x,d.y,p.z);g.rotation.set(0,p.ry,0);}
+function makeWork(tex,ar,name){
+  const w=2.0,h=w/ar;const grp=new THREE.Group();
+  const fr=new THREE.Mesh(new THREE.PlaneGeometry(w+.06,h+.06),
+    new THREE.MeshBasicMaterial({color:0x101012,side:THREE.DoubleSide}));
+  fr.position.z=-.008;grp.add(fr);
+  const pl=new THREE.Mesh(new THREE.PlaneGeometry(w,h),
+    new THREE.MeshBasicMaterial({map:tex,side:THREE.DoubleSide}));grp.add(pl);
+  grp.userData={wi:0,u:W6/2,y:57*IN,w:w/IN,h:h/IN,ar,name};
+  scene.add(grp);works.push(grp);place(grp);return grp;}
+function resizeWork(g,newW){const d=g.userData,h=newW/d.ar;
+  d.w=newW/IN;d.h=h/IN;
+  g.children[0].geometry.dispose();g.children[1].geometry.dispose();
+  g.children[0].geometry=new THREE.PlaneGeometry(newW+.06,h+.06);
+  g.children[1].geometry=new THREE.PlaneGeometry(newW,h);place(g);}
+
+const hud=document.getElementById('hud');
+function showHud(){if(!sel){hud.style.display='none';return;}
+  const d=sel.userData;hud.style.display='block';
+  hud.innerHTML=`<b>${WALLS[d.wi].id}</b> &nbsp; ${Math.round(d.w)}×${Math.round(d.h)} in &nbsp;·&nbsp; `+
+    `${Math.round(d.u/IN)}&nbsp;in from left &nbsp;·&nbsp; centre ${Math.round(d.y/IN)}&nbsp;in`;}
+
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();
+let mode=null,lastX=0,lastY=0;
+canvas.addEventListener('pointerdown',e=>{
+  ptr.x=(e.clientX/innerWidth)*2-1;ptr.y=-(e.clientY/innerHeight)*2+1;
+  ray.setFromCamera(ptr,camera);
+  const hit=ray.intersectObjects(works,true);
+  lastX=e.clientX;lastY=e.clientY;
+  if(hit.length){sel=hit[0].object.parent;mode=e.shiftKey?'scale':'move';}
+  else{sel=null;mode='orbit';}
+  showHud();canvas.classList.add('dragging');});
+addEventListener('pointerup',()=>{mode=null;canvas.classList.remove('dragging')});
+addEventListener('pointermove',e=>{
+  if(!mode)return;
+  const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
+  if(mode==='orbit'){th+=dx*.006;ph=Math.max(.1,Math.min(1.55,ph+dy*.006));cam();}
+  else if(mode==='move'&&sel){const d=sel.userData;
+    d.u=Math.max(0,Math.min(WALLS[d.wi].len,d.u+dx*.035));
+    d.y=Math.max(d.h*IN/2,Math.min(10.5,d.y-dy*.03));place(sel);showHud();}
+  else if(mode==='scale'&&sel){const cur=sel.userData.w*IN;
+    resizeWork(sel,Math.max(.3,Math.min(24,cur-dy*.03)));showHud();}});
+canvas.addEventListener('wheel',e=>{e.preventDefault();
+  rad=Math.max(8,Math.min(150,rad+e.deltaY*.05));cam();},{passive:false});
+
+addEventListener('keydown',e=>{
+  if(!sel)return;
+  if(e.key===']'){sel.userData.wi=(sel.userData.wi+1)%WALLS.length;
+    sel.userData.u=WALLS[sel.userData.wi].len/2;place(sel);showHud();}
+  if(e.key==='['){sel.userData.wi=(sel.userData.wi+WALLS.length-1)%WALLS.length;
+    sel.userData.u=WALLS[sel.userData.wi].len/2;place(sel);showHud();}
+  if(e.key==='Backspace'||e.key==='Delete'){scene.remove(sel);
+    works.splice(works.indexOf(sel),1);sel=null;showHud();}});
+
+const dropEl=document.getElementById('drop'),fileEl=document.getElementById('file');
+dropEl.onclick=()=>fileEl.click();
+addEventListener('dragover',e=>{e.preventDefault();dropEl.classList.add('over')});
+addEventListener('dragleave',()=>dropEl.classList.remove('over'));
+addEventListener('drop',e=>{e.preventDefault();dropEl.classList.remove('over');load(e.dataTransfer.files)});
+fileEl.onchange=e=>load(e.target.files);
+function load(files){[...files].forEach((f,i)=>{
+  const r=new FileReader();
+  r.onload=ev=>{const img=new Image();
+    img.onload=()=>{const g=makeWork(new THREE.CanvasTexture(img),img.width/img.height,f.name);
+      g.userData.u=2+i*2.6;place(g);sel=g;showHud();};
+    img.src=ev.target.result;};
+  r.readAsDataURL(f);});}
+
+document.getElementById('copy').onclick=()=>{
+  const t=works.map(g=>{const d=g.userData;
+    return `${d.name} — ${WALLS[d.wi].id} · ${Math.round(d.w)}×${Math.round(d.h)} in · ${Math.round(d.u/IN)} in from left · centre ${Math.round(d.y/IN)} in`;
+  }).join('\n');
+  navigator.clipboard.writeText(t);
+  const b=document.getElementById('copy');b.textContent='Copied';
+  setTimeout(()=>b.textContent='Copy list',1300);};
+
+(function loop(){requestAnimationFrame(loop);renderer.render(scene,camera)})();
+</script>
+</body>
+</html>
