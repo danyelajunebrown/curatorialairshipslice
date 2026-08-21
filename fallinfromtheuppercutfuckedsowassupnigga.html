@@ -30,6 +30,8 @@
     border-radius:4px;background:#fff;color:#333;cursor:pointer;white-space:nowrap}
   #hud button:hover{background:#f0f0f0}
   #hud b{color:#ff5c7a;font-weight:600}
+  #share{position:fixed;right:222px;bottom:12px;padding:9px 14px;border-radius:6px;
+    background:#111;color:#fff;border:0;font:inherit;font-weight:600;cursor:pointer}
   #clear{position:fixed;right:110px;bottom:12px;padding:9px 14px;border-radius:6px;
     background:rgba(255,255,255,.92);color:#a00;border:1px solid #ddd;font:inherit;
     font-weight:600;cursor:pointer}
@@ -63,6 +65,7 @@
 </div>
 <button id="copy">Copy list</button>
 <button id="clear">Clear room</button>
+<button id="share">Export viewer</button>
 <div id="saved"></div>
 <div id="tip">
   drag empty space — orbit &nbsp;·&nbsp; scroll — zoom<br>
@@ -403,6 +406,131 @@ function flip(){ if(!sel)return; sel.userData.flip=!sel.userData.flip;
   place(sel); showHud(); save(); }
 document.getElementById('dupe').onclick=duplicate;
 document.getElementById('flip').onclick=flip;
+
+
+const VIEWER_JS = [
+"var IN=1/12,W6=26.833,W1=12,W2=8.584,W4=35.417,DEPTH=26,H6=9.29,H1=10,H2=8.79,H3=9.75,H4=9.5,",
+"FWW=11.125,FWH=11.04,FX=5.5,FZ0=7;",
+"var canvas=document.getElementById('c');",
+"var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});renderer.setPixelRatio(devicePixelRatio);",
+"var scene=new THREE.Scene();",
+"(function(){var Wd=1024,Hg=512,cv=document.createElement('canvas');cv.width=Wd;cv.height=Hg;",
+"var x=cv.getContext('2d');var g=x.createLinearGradient(0,0,0,Hg);",
+"g.addColorStop(0,'#2f6fb5');g.addColorStop(.42,'#5f9fd6');g.addColorStop(.72,'#9dc6e6');g.addColorStop(1,'#cfe0ec');",
+"x.fillStyle=g;x.fillRect(0,0,Wd,Hg);",
+"for(var i=0;i<40;i++){var cx=Math.random()*Wd,cy=40+Math.random()*260,r=30+Math.random()*90;",
+"for(var k=0;k<6;k++){var rg=x.createRadialGradient(cx+(Math.random()-.5)*r*1.6,cy+(Math.random()-.5)*r*.5,0,",
+"cx+(Math.random()-.5)*r*1.6,cy+(Math.random()-.5)*r*.5,r*(.5+Math.random()*.6));",
+"rg.addColorStop(0,'rgba(255,255,255,.75)');rg.addColorStop(1,'rgba(255,255,255,0)');",
+"x.fillStyle=rg;x.beginPath();x.arc(cx,cy,r,0,7);x.fill();}}",
+"var t=new THREE.CanvasTexture(cv);t.mapping=THREE.EquirectangularReflectionMapping;scene.background=t;})();",
+"var camera=new THREE.PerspectiveCamera(55,1,.1,600);",
+"function rs(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}",
+"addEventListener('resize',rs);rs();",
+"var th=-.75,ph=.78,rad=56,tgt=new THREE.Vector3(17,4.5,13);",
+"var gTh=th,gPh=ph,gRad=rad,gTgt=tgt.clone(),tw=false;",
+"function cam(){camera.position.set(tgt.x+rad*Math.sin(ph)*Math.cos(th),tgt.y+rad*Math.cos(ph),",
+"tgt.z+rad*Math.sin(ph)*Math.sin(th));camera.lookAt(tgt);}cam();",
+"function flyTo(e,l){gTgt.copy(l);var d=e.clone().sub(l);gRad=d.length();",
+"gPh=Math.acos(Math.max(-1,Math.min(1,d.y/gRad)));var w=Math.atan2(d.z,d.x);",
+"while(w-th>Math.PI)w-=2*Math.PI;while(w-th<-Math.PI)w+=2*Math.PI;gTh=w;tw=true;}",
+"function tick(){if(!tw)return;var k=.14;th+=(gTh-th)*k;ph+=(gPh-ph)*k;rad+=(gRad-rad)*k;",
+"tgt.lerp(gTgt,k);cam();if(Math.abs(gTh-th)<.002&&Math.abs(gRad-rad)<.05)tw=false;}",
+"var wm=new THREE.MeshStandardMaterial({color:0xf2efe9,roughness:.95,side:THREE.DoubleSide});",
+"var bm=new THREE.MeshStandardMaterial({color:0xcfc9c1,roughness:1,side:THREE.DoubleSide});",
+"var sh=new THREE.Shape();sh.moveTo(0,0);sh.lineTo(W6,0);sh.lineTo(W6,W1);sh.lineTo(W6+W2,W1);",
+"sh.lineTo(W6+W2,DEPTH);sh.lineTo(0,DEPTH);sh.lineTo(0,0);",
+"var fl=new THREE.Mesh(new THREE.ShapeGeometry(sh),new THREE.MeshStandardMaterial({color:0xd9b98c,roughness:.85,side:THREE.DoubleSide}));",
+"fl.rotation.x=Math.PI/2;scene.add(fl);",
+"function mk(x1,z1,x2,z2,h,m){var L=Math.hypot(x2-x1,z2-z1);",
+"var o=new THREE.Mesh(new THREE.BoxGeometry(L,h,.4),m||wm);",
+"o.position.set((x1+x2)/2,h/2,(z1+z2)/2);o.rotation.y=-Math.atan2(z2-z1,x2-x1);scene.add(o);return o;}",
+"mk(0,0,W6,0,H6);mk(W6,0,W6,W1,H1);mk(W6,W1,W6+W2,W1,H2);",
+"(function(){var x=W6+W2,zA=W1,zB=DEPTH,DW=5.375,DH=6.9,zD=zA+2;",
+"mk(x,zA,x,zD,H3);mk(x,zD+DW,x,zB,H3);",
+"var hd=new THREE.Mesh(new THREE.BoxGeometry(DW,H3-DH,.4),wm);",
+"hd.position.set(x,DH+(H3-DH)/2,zD+DW/2);hd.rotation.y=Math.PI/2;scene.add(hd);})();",
+"mk(W6+W2,DEPTH,0,DEPTH,H4);mk(0,DEPTH,0,0,H1,bm);mk(FX,FZ0,FX,FZ0+FWW,FWH);",
+"var vd=new THREE.Mesh(new THREE.BoxGeometry(11,.12,5.2),new THREE.MeshStandardMaterial({color:0xd9b98c,roughness:.85}));",
+"vd.position.set(17.5,.02,13.5);scene.add(vd);",
+"var gm=new THREE.MeshPhysicalMaterial({color:0xbfd8e0,transparent:true,opacity:.22,roughness:.05,side:THREE.DoubleSide});",
+"function rail(x,z,w,d){var o=new THREE.Mesh(new THREE.BoxGeometry(w,3.4,d),gm);o.position.set(x,1.7,z);scene.add(o);}",
+"rail(17.5,11,11.2,.08);rail(17.5,16,11.2,.08);rail(12,13.5,.08,5.2);rail(23,13.5,.08,5.2);",
+"var hr=new THREE.Mesh(new THREE.BoxGeometry(12.5,.12,.12),new THREE.MeshStandardMaterial({color:0x1c1c1e}));",
+"hr.position.set(17.5,2.4,13.5);hr.rotation.y=-.42;scene.add(hr);",
+"scene.add(new THREE.AmbientLight(0xffffff,.85));",
+"var L1=new THREE.DirectionalLight(0xfff4e2,.7);L1.position.set(18,26,16);scene.add(L1);",
+"var L2=new THREE.DirectionalLight(0xffffff,.28);L2.position.set(-14,16,-8);scene.add(L2);",
+"var WALLS=[{f:function(u){return{x:u,z:.25,ry:0}},len:W6},",
+"{f:function(u){return{x:W6-.25,z:u,ry:-Math.PI/2}},len:W1},",
+"{f:function(u){return{x:W6+u,z:W1+.25,ry:0}},len:W2},",
+"{f:function(u){return{x:W4-u,z:DEPTH-.25,ry:Math.PI}},len:W4},",
+"{f:function(u){return{x:FX+.3,z:FZ0+u,ry:Math.PI/2}},len:FWW},",
+"{f:function(u){return{x:FX-.3,z:FZ0+FWW-u,ry:-Math.PI/2}},len:FWW},",
+"{f:function(u){return{x:.3,z:DEPTH-u,ry:Math.PI/2}},len:DEPTH}];",
+"BAKED.forEach(function(d){var img=new Image();img.onload=function(){",
+"var tx=new THREE.CanvasTexture(img);tx.premultiplyAlpha=false;",
+"var w=d.w*IN,h=d.h*IN,gp=new THREE.Group();",
+"if(!d.alpha){var fr=new THREE.Mesh(new THREE.PlaneGeometry(w+.06,h+.06),",
+"new THREE.MeshBasicMaterial({color:0x101012,side:THREE.DoubleSide}));fr.position.z=-.008;gp.add(fr);}",
+"var pl=new THREE.Mesh(new THREE.PlaneGeometry(w,h),",
+"new THREE.MeshBasicMaterial({map:tx,side:THREE.DoubleSide,transparent:true,alphaTest:.02,depthWrite:!d.alpha}));",
+"gp.add(pl);var W=WALLS[d.wi],p=W.f(Math.max(w/2,Math.min(W.len-w/2,d.u)));",
+"gp.position.set(p.x,d.y,p.z);gp.rotation.set(0,p.ry,0);gp.scale.x=d.flip?-1:1;scene.add(gp);};",
+"img.src=d.src;});",
+"var VIEWS={plan:{e:new THREE.Vector3(17.7,44,40),l:new THREE.Vector3(17.7,3,13)},",
+"0:{e:new THREE.Vector3(W6/2,5,26),l:new THREE.Vector3(W6/2,5,0)},",
+"1:{e:new THREE.Vector3(W6-15,5,W1/2),l:new THREE.Vector3(W6,5,W1/2)},",
+"2:{e:new THREE.Vector3(W6+W2/2,5,W1+13),l:new THREE.Vector3(W6+W2/2,5,W1)},",
+"3:{e:new THREE.Vector3(W4/2,5,DEPTH-32),l:new THREE.Vector3(W4/2,5,DEPTH)},",
+"4:{e:new THREE.Vector3(FX+14,5,FZ0+FWW/2),l:new THREE.Vector3(FX,5,FZ0+FWW/2)},",
+"5:{e:new THREE.Vector3(FX-14,5,FZ0+FWW/2),l:new THREE.Vector3(FX,5,FZ0+FWW/2)},",
+"6:{e:new THREE.Vector3(26,5,DEPTH/2),l:new THREE.Vector3(0,5,DEPTH/2)}};",
+"[].forEach.call(document.querySelectorAll('#v button'),function(b){b.onclick=function(){",
+"[].forEach.call(document.querySelectorAll('#v button'),function(o){o.classList.remove('on')});",
+"b.classList.add('on');var v=VIEWS[b.dataset.v];flyTo(v.e,v.l);};});",
+"var dn=false,px=0,py=0;",
+"canvas.addEventListener('pointerdown',function(e){dn=true;tw=false;px=e.clientX;py=e.clientY;});",
+"addEventListener('pointerup',function(){dn=false;});",
+"addEventListener('pointermove',function(e){if(!dn)return;th+=(e.clientX-px)*.006;",
+"ph=Math.max(.1,Math.min(1.55,ph+(e.clientY-py)*.006));px=e.clientX;py=e.clientY;cam();});",
+"canvas.addEventListener('wheel',function(e){e.preventDefault();tw=false;",
+"rad=Math.max(8,Math.min(150,rad+e.deltaY*.05));cam();},{passive:false});",
+"(function loop(){requestAnimationFrame(loop);tick();renderer.render(scene,camera);})();"
+].join('\n');
+
+document.getElementById('share').onclick=()=>{
+  const data=works.map(g=>{const d=g.userData;
+    return {wi:d.wi,u:d.u,y:d.y,w:d.w,h:d.h,ar:d.ar,name:d.name,alpha:d.alpha,src:d.src,flip:d.flip};});
+  if(!data.length){note('Place something first');return;}
+  const V = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+  + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+  + '<title>fallin from the uppercut, fucked, so wassup</title><style>'
+  + '*{box-sizing:border-box;margin:0}html,body{height:100%;overflow:hidden;background:#fff;'
+  + 'font:13px/1.4 -apple-system,BlinkMacSystemFont,Helvetica Neue,Arial,sans-serif;color:#111}'
+  + 'canvas{display:block;cursor:grab}canvas:active{cursor:grabbing}'
+  + '#v{position:fixed;left:50%;transform:translateX(-50%);top:14px;display:flex;gap:6px;'
+  + 'background:rgba(255,255,255,.9);border:1px solid #ddd;border-radius:8px;padding:5px;flex-wrap:wrap;justify-content:center}'
+  + '#v button{font:inherit;font-size:12px;padding:6px 11px;border:0;border-radius:5px;'
+  + 'background:transparent;color:#444;cursor:pointer;font-weight:600}'
+  + '#v button:hover{background:#eee;color:#111}#v button.on{background:#e8264f;color:#fff}'
+  + '#t{position:fixed;left:14px;bottom:12px;color:#999;font-size:11px}'
+  + '</style></head><body><canvas id="c"></canvas>'
+  + '<div id="v"><button data-v="plan">Plan</button><button data-v="0">Wall 6</button>'
+  + '<button data-v="1">Wall 1</button><button data-v="2">Wall 2</button>'
+  + '<button data-v="3">Wall 4</button><button data-v="4">5A</button>'
+  + '<button data-v="5">5B</button><button data-v="6">Brick</button></div>'
+  + '<div id="t">drag to orbit &middot; scroll to zoom &middot; view only</div>'
+  + '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>'
+  + '<script>var BAKED=' + JSON.stringify(data) + ';<\/script>'
+  + '<script>' + VIEWER_JS + '<\/script></body></html>';
+  const blob=new Blob([V],{type:'text/html'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='fallin-viewer.html';
+  a.click();
+  note('Viewer exported');
+};
 
 document.getElementById('clear').onclick=()=>{
   if(!confirm('Remove every work from the room?'))return;
