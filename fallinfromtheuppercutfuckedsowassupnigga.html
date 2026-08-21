@@ -52,13 +52,14 @@
   <button data-v="3">Wall 4</button>
   <button data-v="4">5A</button>
   <button data-v="5">5B</button>
-  <button data-v="6">Brick</button>
+  <button data-v="6">Wall 3</button>
+  <button data-v="7">Brick</button>
 </div>
 <div id="hud">
   <select id="wallsel">
     <option value="0">Wall 6</option><option value="1">Wall 1</option>
     <option value="2">Wall 2</option><option value="3">Wall 4</option>
-    <option value="4">5A inner</option><option value="5">5B outer</option><option value="6">Brick / west</option>
+    <option value="4">5A inner</option><option value="5">5B outer</option><option value="6">Wall 3 — by the door, 5'</option><option value="7">Brick / west</option>
   </select>
   <input type="range" id="sizer" min="4" max="160" value="24">
   <button id="dupe" title="Duplicate (D)">Duplicate</button><button id="flip" title="Flip horizontal (F)">Flip</button><span id="readout"></span>
@@ -193,9 +194,9 @@ mkwall(W6,W1,W6+W2,W1,H2);
 // east return: solid above and beside a doorway opening
 (function(){
   const x=W6+W2, zA=W1, zB=DEPTH, DOORW=5.375, DOORH=6.9;
-  const zDoor=zA+2.0;                         // opening starts 2 ft in
-  mkwall(x,zA,x,zDoor,H3);                    // solid before the door
-  mkwall(x,zDoor+DOORW,x,zB,H3);              // solid after the door
+  const zDoor=zA+1.0;                         // opening starts 1 ft in
+  mkwall(x,zA,x,zDoor,H3);                    // short return before the door
+  mkwall(x,zDoor+DOORW,x,zB,H3);              // WALL 3 — 5 ft, then the rest
   const head=new THREE.Mesh(new THREE.BoxGeometry(DOORW,H3-DOORH,0.4),wallMat);
   head.position.set(x,DOORH+(H3-DOORH)/2,zDoor+DOORW/2);
   head.rotation.y=Math.PI/2; scene.add(head); // header over the opening
@@ -245,6 +246,7 @@ const WALLS=[
  {id:'WALL 4', len:W4, f:u=>({x:W4-u,z:DEPTH-.25,ry:Math.PI})},
  {id:'5A',     len:FWW,f:u=>({x:FX+.3,z:FZ0+u,ry:Math.PI/2})},
  {id:'5B',     len:FWW,f:u=>({x:FX-.3,z:FZ0+FWW-u,ry:-Math.PI/2})},
+ {id:'WALL 3', len:5.0, f:u=>({x:W6+W2-.25,z:W1+6.375+u,ry:-Math.PI/2})},
  {id:'BRICK',  len:DEPTH,f:u=>({x:.3,z:DEPTH-u,ry:Math.PI/2})}
 ];
 
@@ -519,7 +521,8 @@ document.getElementById('share').onclick=()=>{
   + '<div id="v"><button data-v="plan">Plan</button><button data-v="0">Wall 6</button>'
   + '<button data-v="1">Wall 1</button><button data-v="2">Wall 2</button>'
   + '<button data-v="3">Wall 4</button><button data-v="4">5A</button>'
-  + '<button data-v="5">5B</button><button data-v="6">Brick</button></div>'
+  + '<button data-v="5">5B</button><button data-v="6">Wall 3</button>
+  <button data-v="7">Brick</button></div>'
   + '<div id="t">drag to orbit &middot; scroll to zoom &middot; view only</div>'
   + '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>'
   + '<script>var BAKED=' + JSON.stringify(data) + ';<\/script>'
@@ -556,7 +559,8 @@ const VIEWS={
   3:{eye:new THREE.Vector3(W4/2,5,DEPTH-32),  look:new THREE.Vector3(W4/2,5,DEPTH)},
   4:{eye:new THREE.Vector3(FX+14,5,FZ0+FWW/2),look:new THREE.Vector3(FX,5,FZ0+FWW/2)},
   5:{eye:new THREE.Vector3(FX-14,5,FZ0+FWW/2),look:new THREE.Vector3(FX,5,FZ0+FWW/2)},
-  6:{eye:new THREE.Vector3(26,5,DEPTH/2),      look:new THREE.Vector3(0,5,DEPTH/2)}
+  6:{eye:new THREE.Vector3(W6+W2-13,5,W1+8.9), look:new THREE.Vector3(W6+W2,5,W1+8.9)},
+  7:{eye:new THREE.Vector3(26,5,DEPTH/2),      look:new THREE.Vector3(0,5,DEPTH/2)}
 };
 document.querySelectorAll('#views button').forEach(b=>{
   b.onclick=()=>{
